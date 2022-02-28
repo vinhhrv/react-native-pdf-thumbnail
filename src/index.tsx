@@ -6,8 +6,15 @@ export type ThumbnailResult = {
   height: number;
 };
 
+export type ThumbnailBase64Result = {
+  base64: string;
+  width: number;
+  height: number;
+};
+
 type PdfThumbnailType = {
   generate(filePath: string, page: number): Promise<ThumbnailResult>;
+  generateWithBase64(base64: string, page: number): Promise<ThumbnailBase64Result>;
   generateAllPages(filePath: string): Promise<ThumbnailResult[]>;
 };
 

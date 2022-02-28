@@ -24,12 +24,26 @@ class PdfThumbnail: NSObject {
         let random = Int.random(in: 0 ..< Int.max)
         return "\(prefix)-thumbnail-\(page)-\(random).png"
     }
+  
+    func generatePageBase64(pdfPage: PDFPage, page: Int) -> Dictionary<String, Any>? {
+        let pageRect = pdfPage.bounds(for: .mediaBox)
+        let image = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
+        guard let data = image.pngData() else {
+            return nil
+        }
+        let base64 = data.base64EncodedString()
+        return [
+            "base64": base64,
+            "width": Int(pageRect.width),
+            "height": Int(pageRect.height),
+        ]
+    }
 
     func generatePage(pdfPage: PDFPage, filePath: String, page: Int) -> Dictionary<String, Any>? {
         let pageRect = pdfPage.bounds(for: .mediaBox)
         let image = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
         let outputFile = getCachesDirectory().appendingPathComponent(getOutputFilename(filePath: filePath, page: page))
-        guard let data = image.pngData() else {
+      guard let data = image.pngData() else {
             return nil
         }
         do {
@@ -61,6 +75,26 @@ class PdfThumbnail: NSObject {
         }
 
         if let pageResult = generatePage(pdfPage: pdfPage, filePath: filePath, page: page) {
+            resolve(pageResult)
+        } else {
+            reject("INTERNAL_ERROR", "Cannot write image data", nil)
+        }
+    }
+  
+    @available(iOS 11.0, *)
+    @objc(generateWithBase64:withPage:withResolver:withRejecter:)
+    func generateWithBase64(base64: String, page: Int, resolve:RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
+        let data = Data.init(base64Encoded: base64);
+        guard let pdfDocument = PDFDocument(data: data!) else {
+            reject("FILE_NOT_FOUND", "File \(base64) not found", nil)
+            return
+        }
+        guard let pdfPage = pdfDocument.page(at: page) else {
+            reject("INVALID_PAGE", "Page number \(page) is invalid, file has \(pdfDocument.pageCount) pages", nil)
+            return
+        }
+
+        if let pageResult = generatePageBase64(pdfPage: pdfPage, page: page) {
             resolve(pageResult)
         } else {
             reject("INTERNAL_ERROR", "Cannot write image data", nil)
