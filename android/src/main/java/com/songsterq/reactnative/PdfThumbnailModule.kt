@@ -4,16 +4,16 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.annotation.RequiresApi
 import com.facebook.react.bridge.*
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import java.io.*
 import java.util.*
+import java.util.Base64
 
 
 class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
@@ -40,6 +40,32 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
       }
 
       val result = renderPage(pdfRenderer, page, filePath)
+      promise.resolve(result)
+    } catch (ex: IOException) {
+      promise.reject("INTERNAL_ERROR", ex)
+    } finally {
+      pdfRenderer?.close()
+      parcelFileDescriptor?.close()
+    }
+  }
+
+  @RequiresApi(Build.VERSION_CODES.O)
+  @ReactMethod
+  fun generateWithBase64(base64: String, page: Int, promise: Promise) {
+    val data = Base64.getDecoder().decode(base64);
+    val file = File.createTempFile("temp", null)
+      .also { FileOutputStream(it).write(data) }
+    val stream = ByteArrayInputStream(data);
+    var parcelFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+    var pdfRenderer: PdfRenderer? = null
+    try {
+      pdfRenderer = PdfRenderer(parcelFileDescriptor);
+      if (page < 0 || page >= pdfRenderer.pageCount) {
+        promise.reject("INVALID_PAGE", "Page number $page is invalid, file has ${pdfRenderer.pageCount} pages")
+        return
+      }
+
+      val result = renderPageBase64(pdfRenderer, page)
       promise.resolve(result)
     } catch (ex: IOException) {
       promise.reject("INTERNAL_ERROR", ex)
@@ -112,6 +138,35 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
 
     val map = WritableNativeMap()
     map.putString("uri", Uri.fromFile(outputFile).toString())
+    map.putInt("width", width)
+    map.putInt("height", height)
+    return map
+  }
+
+  @RequiresApi(Build.VERSION_CODES.O)
+  private fun renderPageBase64(pdfRenderer: PdfRenderer, page: Int): WritableNativeMap {
+    val currentPage = pdfRenderer.openPage(page)
+    val width = currentPage.width
+    val height = currentPage.height
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    currentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+    currentPage.close()
+
+    // Some bitmaps have transparent background which results in a black thumbnail. Add a white background.
+    val bitmapWhiteBG = Bitmap.createBitmap(bitmap.width, bitmap.height, bitmap.config)
+    bitmapWhiteBG.eraseColor(Color.WHITE)
+    val canvas = Canvas(bitmapWhiteBG)
+    canvas.drawBitmap(bitmap, 0f, 0f, null)
+    bitmap.recycle()
+
+    val out = ByteArrayOutputStream();
+    bitmapWhiteBG.compress(Bitmap.CompressFormat.PNG, 0, out)
+    bitmapWhiteBG.recycle()
+    out.flush()
+    out.close()
+    val base64 = Base64.getEncoder().encodeToString(out.toByteArray());
+    val map = WritableNativeMap()
+    map.putString("base64", base64)
     map.putInt("width", width)
     map.putInt("height", height)
     return map
