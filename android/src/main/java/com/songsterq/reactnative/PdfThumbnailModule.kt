@@ -4,17 +4,14 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.util.Log
 import androidx.annotation.RequiresApi
 import com.facebook.react.bridge.*
 import java.io.*
 import java.util.*
-import java.util.Base64
 
 
 class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
@@ -115,13 +112,23 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
   private fun renderPage(pdfRenderer: PdfRenderer, page: Int, filePath: String): WritableNativeMap {
     val currentPage = pdfRenderer.openPage(page)
     val width = currentPage.width
-    val height = currentPage.height
+    var height = currentPage.height
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    currentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+    currentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
     currentPage.close()
 
+    val cutColor = Color.RED;
+
+    for (y in 0 until bitmap.height) {
+      val pixel = bitmap.getPixel(width/2, bitmap.height - y - 1)
+      if (pixel == cutColor) {
+        height = bitmap.height - y
+        break
+      }
+    }
+
     // Some bitmaps have transparent background which results in a black thumbnail. Add a white background.
-    val bitmapWhiteBG = Bitmap.createBitmap(bitmap.width, bitmap.height, bitmap.config)
+    val bitmapWhiteBG = Bitmap.createBitmap(bitmap.width, height, bitmap.config)
     bitmapWhiteBG.eraseColor(Color.WHITE)
     val canvas = Canvas(bitmapWhiteBG)
     canvas.drawBitmap(bitmap, 0f, 0f, null)
@@ -148,13 +155,23 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
   private fun renderPageBase64(pdfRenderer: PdfRenderer, page: Int): WritableNativeMap {
     val currentPage = pdfRenderer.openPage(page)
     val width = currentPage.width
-    val height = currentPage.height
+    var height = currentPage.height
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    currentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+    currentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
     currentPage.close()
 
+    val cutColor = Color.RED;
+
+    for (y in 0 until bitmap.height) {
+      val pixel = bitmap.getPixel(width/2, bitmap.height - y - 1)
+      if (pixel == cutColor) {
+        height = bitmap.height - y
+        break
+      }
+    }
+
     // Some bitmaps have transparent background which results in a black thumbnail. Add a white background.
-    val bitmapWhiteBG = Bitmap.createBitmap(bitmap.width, bitmap.height, bitmap.config)
+    val bitmapWhiteBG = Bitmap.createBitmap(bitmap.width, height, bitmap.config)
     bitmapWhiteBG.eraseColor(Color.WHITE)
     val canvas = Canvas(bitmapWhiteBG)
     canvas.drawBitmap(bitmap, 0f, 0f, null)
