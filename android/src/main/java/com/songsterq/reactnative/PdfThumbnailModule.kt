@@ -9,6 +9,7 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.annotation.RequiresApi
 import com.facebook.react.bridge.*
 import java.io.*
@@ -52,7 +53,7 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
   @RequiresApi(Build.VERSION_CODES.O)
   @ReactMethod
   fun generateWithBase64(base64: String, page: Int, promise: Promise) {
-    val data = Base64.getDecoder().decode(base64);
+    val data = Base64.getMimeDecoder().decode(base64);
     val file = File.createTempFile("temp", null)
       .also { FileOutputStream(it).write(data) }
     val stream = ByteArrayInputStream(data);
@@ -164,7 +165,7 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
     bitmapWhiteBG.recycle()
     out.flush()
     out.close()
-    val base64 = Base64.getEncoder().encodeToString(out.toByteArray());
+    val base64 = Base64.getMimeEncoder().encodeToString(out.toByteArray());
     val map = WritableNativeMap()
     map.putString("base64", base64)
     map.putInt("width", width)
