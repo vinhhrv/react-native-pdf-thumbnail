@@ -24,10 +24,44 @@ class PdfThumbnail: NSObject {
         let random = Int.random(in: 0 ..< Int.max)
         return "\(prefix)-thumbnail-\(page)-\(random).png"
     }
+    
+    func cropToBounds(image: UIImage, width: Double, height: Double) -> UIImage {
+            let cgimage = image.cgImage!
+            let rect: CGRect = CGRect(x: 0, y: 0, width: width, height: height)
+            let imageRef: CGImage = cgimage.cropping(to: rect)!
+            let image: UIImage = UIImage(cgImage: imageRef, scale: image.scale, orientation: image.imageOrientation)
+            return image
+        }
+    
+    func cropToRedPixel(image: UIImage) -> UIImage {
+        guard let cgImage = image.cgImage,
+            let data = cgImage.dataProvider?.data,
+            let bytes = CFDataGetBytePtr(data) else {
+            fatalError("Couldn't access image data")
+        }
+        assert(cgImage.colorSpace?.model == .rgb)
+        let bytesPerPixel = cgImage.bitsPerPixel / cgImage.bitsPerComponent
+        
+        let midPoint = cgImage.width / 2
+        var maxY = cgImage.height
+    
+        for y in 0 ..< cgImage.height {
+            let offset = ((cgImage.height - y - 1) * cgImage.bytesPerRow) + (midPoint * bytesPerPixel)
+            let components = (r: bytes[offset], g: bytes[offset + 1], b: bytes[offset + 2])
+            if components.r == 0 && components.b == 255 && components.g == 0 {
+                NSLog("[y:\(y)] \(components)")
+                maxY = cgImage.height - y - 2
+            }
+            NSLog("[y:\(y)] \(components)")
+        }
+        
+        return cropToBounds(image:image, width: Double(cgImage.width), height:Double(maxY))
+    }
   
     func generatePageBase64(pdfPage: PDFPage, page: Int) -> Dictionary<String, Any>? {
         let pageRect = pdfPage.bounds(for: .mediaBox)
-        let image = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
+        let imageThumb = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
+        let image = cropToRedPixel(image: imageThumb)
         guard let data = image.pngData() else {
             return nil
         }
@@ -41,7 +75,8 @@ class PdfThumbnail: NSObject {
 
     func generatePage(pdfPage: PDFPage, filePath: String, page: Int) -> Dictionary<String, Any>? {
         let pageRect = pdfPage.bounds(for: .mediaBox)
-        let image = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
+        let imageThumb = pdfPage.thumbnail(of: CGSize(width: pageRect.width, height: pageRect.height), for: .mediaBox)
+        let image = cropToRedPixel(image: imageThumb)
         let outputFile = getCachesDirectory().appendingPathComponent(getOutputFilename(filePath: filePath, page: page))
       guard let data = image.pngData() else {
             return nil
@@ -127,5 +162,27 @@ class PdfThumbnail: NSObject {
             }
         }
         resolve(result)
+    }
+}
+
+extension UIImage {
+    subscript (x: Int, y: Int) -> UIColor? {
+        guard x >= 0 && x < Int(size.width) && y >= 0 && y < Int(size.height),
+            let cgImage = cgImage,
+            let provider = cgImage.dataProvider,
+            let providerData = provider.data,
+            let data = CFDataGetBytePtr(providerData) else {
+            return nil
+        }
+
+        let numberOfComponents = 4
+        let pixelData = ((Int(size.width) * y) + x) * numberOfComponents
+
+        let r = CGFloat(data[pixelData]) / 255.0
+        let g = CGFloat(data[pixelData + 1]) / 255.0
+        let b = CGFloat(data[pixelData + 2]) / 255.0
+        let a = CGFloat(data[pixelData + 3]) / 255.0
+
+        return UIColor(red: r, green: g, blue: b, alpha: a)
     }
 }
