@@ -50,7 +50,7 @@ class PdfThumbnail: NSObject {
             let components = (r: bytes[offset], g: bytes[offset + 1], b: bytes[offset + 2])
             if components.r == 0 && components.b == 255 && components.g == 0 {
                 NSLog("[y:\(y)] \(components)")
-                maxY = cgImage.height - y - 2
+                maxY = cgImage.height - y - 3
             }
             NSLog("[y:\(y)] \(components)")
         }
