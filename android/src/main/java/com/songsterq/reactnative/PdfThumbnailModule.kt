@@ -122,7 +122,7 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
     for (y in 0 until bitmap.height) {
       val pixel = bitmap.getPixel(width/2, bitmap.height - y - 1)
       if (pixel == cutColor) {
-        height = bitmap.height - y - 4
+        height = (bitmap.height - y) - 4
         break
       }
     }
@@ -165,7 +165,7 @@ class PdfThumbnailModule(reactContext: ReactApplicationContext) : ReactContextBa
     for (y in 0 until bitmap.height) {
       val pixel = bitmap.getPixel(width/2, bitmap.height - y - 1)
       if (pixel == cutColor) {
-        height = bitmap.height - y - 2
+        height = (bitmap.height - y) - 4
         break
       }
     }
