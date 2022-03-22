@@ -1,5 +1,7 @@
 # react-native-pdf-thumbnail
 
+npm publish --access public
+
 A react native module for generating thumbnail for PDF files.
 
 A wrapper for:
